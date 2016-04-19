@@ -1,0 +1,172 @@
+#!/bin/bash
+
+
+#----------------------------------
+#1. SET TRAPS (get um)
+# We set traps in order to catch specifc signals that might get
+# triggered during execution, by user.  Signals(Interrupt, hangup, terminate) 
+#Checks for Signal: 1) Hang up 2) Interrupt 3) Terminate
+#----------------------------------
+trap 'rm -f "$filewdata" "$sts" "$srt" "$coll" "$newrow"; echo "trap: Trap was set, temp files deleted." 2>&1;exit 1 ' HUP INT TERM KILL
+
+
+filewdata="datafile$$" #creates a string variable for file name with current
+					   #pid on the end.
+
+sts="tempStats$$"
+srt="tempSort$$"
+coll="tempCol$$"
+newrow="newrow$$"
+echo "Average Median" > $sts
+
+#----------------------------------
+#1. CHECK ARGUMENTS
+#We start by checking to see if the number of arguments are correct.
+#   If less than 1 (i.e 0) or greater than 2, produce Usage message and exit with error.  
+#2. CREATE FILE || CHECK FOR VALID FILE
+# If only one argument user create data for file on the fly or
+#If two arguments check for valid file. 
+#----------------------------------
+if [[ $# -lt 1 ]]; then #if there are 0 arguments, display usage.
+
+        echo "Usage: stats {-rows|-cols} [file]" 2>&1 #Redirect to stderr
+        exit 1 #Exit program with error
+
+elif [[ $# -gt 2 ]]; then #if there are more than 2 arguments, display usage. 
+        echo "Usage: stats {-rows|-cols} [file]" 2>&1
+        exit 1 
+
+elif [[ $# -eq 1 ]]; then #if there is one argument, we need user input.
+        echo "One argument: Please input data now to be calculated:"
+        cat > "$filewdata" #User input to filewdata file
+
+elif [[ $# -eq 2 ]]; then #Two arguments, check for valid file.
+        
+        if [[ -s $2 ]]; then #Check if file exists and has a size greater than 0
+        		
+        		#echo "File is good"  #test for good file input
+        		cat $2 > "$filewdata"  #cat file into our tempfile 
+        	else
+         		echo "stats: File cannot be read, or file is empty." 2>&1
+         		exit 1 
+    	fi
+        
+fi
+
+#----------------------------------
+#1.CHECK VALID ROW/COL ARGUMENT
+# Now we have a valid file, or have created one, move on to check first input
+# for valid rows/columns argument, and execute steps based on that input. 
+#2. EXECUTE 
+#----------------------------------
+
+#BY ROWS
+if [[ $1 == -r* ]]; then #First argument identified as rows
+		#echo "computing by rows"
+       sum=0
+    while read lineByline
+    do
+       numOfnums=$(echo $lineByline | wc -w) #pipes output of current line into word count input, and counts number of numbers
+        #Nested loop, loop though values on each line
+        for num in $lineByline
+          do
+            sum=`expr $sum + $num` #Get the total of a row as you iterate though
+            echo -e "$num" >> $srt
+            
+        done
+                #ave=$(printf "%.0f\t"  $(echo "scale=1; $sum/$numOfnums " | bc)) #pipe to bench calc and use printf for rounding
+            noRound=$(echo "scale=1; $sum/$numOfnums " | bc)  #gives us unrounded number
+            noRound=$(echo "scale=0; ($noRound+0.5)/1" | bc) #rounds number up if .5, down if <.5
+            echo -e -n "$noRound \t" >> $sts
+            
+            
+            sort $srt -g -o $srt # sort with -o to indicate input file same as output -g numeric sorting
+            medRow=`expr $numOfnums / 2 + 1` #Calc the middle value (or if even, the higher value)
+            median=$(sed "${medRow}q;d" "$srt") 
+                                 #Found this median solution here: http://stackoverflow.com/questions/6022384/bash-tool-to-get-nth-line-from-a-file
+            #cat $srt 
+            echo "$median"  >> $sts
+
+
+            > $srt #Make file empty
+        sum=0 #Set sum back to 0 for next row average calculation
+    done < "$filewdata"  #Get input of our temp file, read line by line
+
+    cat $sts
+
+#BY COLUMNS
+elif [[ $1 == -c* ]]; then  #First argument identified as columns
+		#echo "computing by columns"
+       
+
+
+        fline=$(head -n 1 $filewdata) #get the first line of file to see how many columns
+        numOfnums=$(echo $fline | wc -w) #calculate number of columns
+        numofColplusone=`expr $numOfnums + 1`
+        #numOflines=$(cat $filewdata | wc -l)
+        i=1
+
+        while [ $i -lt $numofColplusone ]
+        do
+            cut -f $i $filewdata >> $coll
+            cat $coll | tr '\n' '\t' >> $newrow
+            echo "" >> $newrow
+            > $coll
+            i=`expr $i + 1`
+           
+        done
+        cat $newrow
+        sum=0
+    while read lineByline
+    do
+       numOfnums=$(echo $lineByline | wc -w) #pipes output of current line into word count input, and counts number of numbers
+        #Nested loop, loop though values on each line
+        for num in $lineByline
+          do
+            sum=`expr $sum + $num` #Get the total of a row as you iterate though
+            echo -e "$num" >> $srt
+            
+        done
+                #ave=$(printf "%.0f\t"  $(echo "scale=1; $sum/$numOfnums " | bc)) #pipe to bench calc and use printf for rounding
+            noRound=$(echo "scale=1; $sum/$numOfnums " | bc)  #gives us unrounded number
+            noRound=$(echo "scale=0; ($noRound+0.5)/1" | bc) #rounds number up if .5, down if <.5
+            echo -e -n "$noRound \t" >> $sts
+            
+            
+            sort $srt -g -o $srt # sort with -o to indicate input file same as output -g numeric sorting
+            medRow=`expr $numOfnums / 2 + 1` #Calc the middle value (or if even, the higher value)
+            median=$(sed "${medRow}q;d" "$srt") 
+                                 #Found this median solution here: http://stackoverflow.com/questions/6022384/bash-tool-to-get-nth-line-from-a-file
+            #cat $srt 
+            echo "$median"  >> $sts
+            
+
+
+            > $srt #Make file empty
+        sum=0 #Set sum back to 0 for next row average calculation
+    done < "$newrow"  #Get input of our temp file, read line by line
+
+    cat $sts
+
+#BAD INPUT FOR ARGUMENT 1
+else
+	echo "First argument not valid." 2>&1
+        if [[ -f "$filewdata" ]]
+         then
+            rm -f "$filewdata" "$sts" "$srt" "$coll" "$newrow"
+        fi  #We must remove temp files in this location, as they have been created now and we are exiting.
+	
+    exit 1  #Exit program with error
+fi
+
+#sleep 5;
+
+#----------------------------------
+#REMOVE TEMP FILES THAT WERE CREATED 
+#(no trap set....yet :0)
+#----------------------------------
+rm -f "$filewdata" "$sts" "$srt" "$coll" "$newrow"
+
+
+
+
