@@ -1,5 +1,9 @@
 #!/bin/bash
 
+#PROGRAM 1 stats created by: Joseph McMurrough
+# For CS 344 @ OREGONSTATE UNIVERSITY
+#CALCULATES AVERAGES AND MEDIAN OF USER INPUT FILE/COMMAND LINE
+#USAGE: stats {-rows|-cols} [file]
 
 #----------------------------------
 #1. SET TRAPS (get um)
@@ -7,17 +11,22 @@
 # triggered during execution, by user.  Signals(Interrupt, hangup, terminate) 
 #Checks for Signal: 1) Hang up 2) Interrupt 3) Terminate
 #----------------------------------
-trap 'rm -f "$filewdata" "$sts" "$srt" "$coll" "$newrow"; echo "trap: Trap was set, temp files deleted." 2>&1;exit 1 ' HUP INT TERM KILL
+trap 'rm -f "$filewdata" "$sts" "$srt" "$coll" "$newrow"; echo "trap: Trap was set, temp files deleted." >&2;exit 1 ' HUP INT TERM KILL
 
 
 filewdata="datafile$$" #creates a string variable for file name with current
 					   #pid on the end.
 
+#CREATE TEMP FILES
 sts="tempStats$$"
 srt="tempSort$$"
 coll="tempCol$$"
 newrow="newrow$$"
-echo "Average Median" > $sts
+touch $filewdata
+touch $sts
+touch $srt
+touch $coll
+touch $newrow
 
 #----------------------------------
 #1. CHECK ARGUMENTS
@@ -29,25 +38,27 @@ echo "Average Median" > $sts
 #----------------------------------
 if [[ $# -lt 1 ]]; then #if there are 0 arguments, display usage.
 
-        echo "Usage: stats {-rows|-cols} [file]" 2>&1 #Redirect to stderr
+        echo "Usage: stats {-rows|-cols} [file]" >&2 #Output error message
+        rm -f "$filewdata" "$sts" "$srt" "$coll" "$newrow"
         exit 1 #Exit program with error
 
 elif [[ $# -gt 2 ]]; then #if there are more than 2 arguments, display usage. 
-        echo "Usage: stats {-rows|-cols} [file]" 2>&1
+        echo "Usage: stats {-rows|-cols} [file]" >&2
+        rm -f "$filewdata" "$sts" "$srt" "$coll" "$newrow"
         exit 1 
 
 elif [[ $# -eq 1 ]]; then #if there is one argument, we need user input.
-        echo "One argument: Please input data now to be calculated:"
         cat > "$filewdata" #User input to filewdata file
 
 elif [[ $# -eq 2 ]]; then #Two arguments, check for valid file.
         
-        if [[ -s $2 ]]; then #Check if file exists and has a size greater than 0
+        if [[ -r $2 ]]; then #Check if file is readable
         		
         		#echo "File is good"  #test for good file input
         		cat $2 > "$filewdata"  #cat file into our tempfile 
-        	else
-         		echo "stats: File cannot be read, or file is empty." 2>&1
+        	else #File was not readable, send error message, remove temp files, and exit w error
+         		echo "./stats: cannot read $2" >&2
+                rm -f "$filewdata" "$sts" "$srt" "$coll" "$newrow"
          		exit 1 
     	fi
         
@@ -59,10 +70,11 @@ fi
 # for valid rows/columns argument, and execute steps based on that input. 
 #2. EXECUTE 
 #----------------------------------
-
 #BY ROWS
+#----------------------------------
 if [[ $1 == -r* ]]; then #First argument identified as rows
 		#echo "computing by rows"
+        echo -e "Average\tMedian" > $sts #Add header for rows stats display
        sum=0
     while read lineByline
     do
@@ -74,49 +86,56 @@ if [[ $1 == -r* ]]; then #First argument identified as rows
             echo -e "$num" >> $srt
             
         done
-                #ave=$(printf "%.0f\t"  $(echo "scale=1; $sum/$numOfnums " | bc)) #pipe to bench calc and use printf for rounding
+               
             noRound=$(echo "scale=1; $sum/$numOfnums " | bc)  #gives us unrounded number
             noRound=$(echo "scale=0; ($noRound+0.5)/1" | bc) #rounds number up if .5, down if <.5
-            echo -e -n "$noRound \t" >> $sts
+            echo -e -n "$noRound \t" >> $sts #Input average to sts file
             
             
             sort $srt -g -o $srt # sort with -o to indicate input file same as output -g numeric sorting
             medRow=`expr $numOfnums / 2 + 1` #Calc the middle value (or if even, the higher value)
-            median=$(sed "${medRow}q;d" "$srt") 
+            median=$(sed "${medRow}q;d" "$srt") #This sed function grabs the "medRow" numberth element out of file sort
                                  #Found this median solution here: http://stackoverflow.com/questions/6022384/bash-tool-to-get-nth-line-from-a-file
-            #cat $srt 
-            echo "$median"  >> $sts
+           
+            echo "$median"  >> $sts #Input median into sts files
 
 
             > $srt #Make file empty
         sum=0 #Set sum back to 0 for next row average calculation
     done < "$filewdata"  #Get input of our temp file, read line by line
 
-    cat $sts
+    cat $sts #DISPLAY RESULT TO USER
 
+#----------------------------------
 #BY COLUMNS
+#----------------------------------
 elif [[ $1 == -c* ]]; then  #First argument identified as columns
-		#echo "computing by columns"
+		#echo "computing by columns" #test for correct funcationality 
        
 
 
         fline=$(head -n 1 $filewdata) #get the first line of file to see how many columns
         numOfnums=$(echo $fline | wc -w) #calculate number of columns
         numofColplusone=`expr $numOfnums + 1`
-        #numOflines=$(cat $filewdata | wc -l)
-        i=1
+        #numOflines=$(cat $filewdata | wc -l) #gets number of lines in file
 
-        while [ $i -lt $numofColplusone ]
-        do
-            cut -f $i $filewdata >> $coll
-            cat $coll | tr '\n' '\t' >> $newrow
+        
+#CONVERT COLUMNS TO ROWS
+#This loop goes through the input file and converts the columns into rows, with
+#the resulting temp file #newrow
+        i=1 #use i to grab the ith column out of input file (increment in loop below)
+        while [ $i -lt $numofColplusone ] #Loop based on number of columns (plus one since we are starting index at 1 and saying less than #ofcolumns+1)
+        do                                 #Extract columns for file
+            cut -f $i $filewdata >> $coll  #get the ith column out of input file, put in coll
+            cat $coll | tr '\n' '\t' >> $newrow #make a row out of those columns using the tr statement w/ tabs and newline
             echo "" >> $newrow
             > $coll
             i=`expr $i + 1`
-           
         done
-        cat $newrow
-        sum=0
+        
+#DO CALCS ON FILE (SAME AS ROW/USING TEMP FILE $newrow)
+#Changes input into temp file ($coll) after loops run so formated in a horizontal display.
+        sum=0 #The sum varaible is used to grab a sum total of numbers in row/col
     while read lineByline
     do
        numOfnums=$(echo $lineByline | wc -w) #pipes output of current line into word count input, and counts number of numbers
@@ -127,7 +146,6 @@ elif [[ $1 == -c* ]]; then  #First argument identified as columns
             echo -e "$num" >> $srt
             
         done
-                #ave=$(printf "%.0f\t"  $(echo "scale=1; $sum/$numOfnums " | bc)) #pipe to bench calc and use printf for rounding
             noRound=$(echo "scale=1; $sum/$numOfnums " | bc)  #gives us unrounded number
             noRound=$(echo "scale=0; ($noRound+0.5)/1" | bc) #rounds number up if .5, down if <.5
             echo -e -n "$noRound \t" >> $sts
@@ -135,22 +153,33 @@ elif [[ $1 == -c* ]]; then  #First argument identified as columns
             
             sort $srt -g -o $srt # sort with -o to indicate input file same as output -g numeric sorting
             medRow=`expr $numOfnums / 2 + 1` #Calc the middle value (or if even, the higher value)
-            median=$(sed "${medRow}q;d" "$srt") 
+            median=$(sed "${medRow}q;d" "$srt")  #This sed function grabs the "medRow" numberth element out of file sort
                                  #Found this median solution here: http://stackoverflow.com/questions/6022384/bash-tool-to-get-nth-line-from-a-file
-            #cat $srt 
+           
             echo "$median"  >> $sts
-            
-
 
             > $srt #Make file empty
         sum=0 #Set sum back to 0 for next row average calculation
     done < "$newrow"  #Get input of our temp file, read line by line
 
-    cat $sts
+        #GENERATE OUTPUT FILE IN NEW HORIZONTAL FORMAT: result is in $coll
+            echo "Averages:" >> $coll  #Averages header
+            cut -f 1 $sts >> $srt      #Get column one (averages), into temp file $srt
+            cat $srt | tr '\n' '\t' >> $coll #convert column to row, input into $coll
+            > $srt #clear srt file for next use
+            echo >> $coll  #andd new line at end of averages line
+            echo "Medians:" >> $coll #Median header 
+            cut -f 2 $sts >> $srt #Get column 2 (medians), put in temp $srt
+            cat $srt | tr '\n' '\t' >> $coll #Convert columns to row
+            echo >> $coll #add new line
+ 
+    cat $coll  #DISPLAY RESULT TO USER
 
+#----------------------------------
 #BAD INPUT FOR ARGUMENT 1
+#----------------------------------
 else
-	echo "First argument not valid." 2>&1
+	 echo "Usage: stats {-rows|-cols} [file]" >&2
         if [[ -f "$filewdata" ]]
          then
             rm -f "$filewdata" "$sts" "$srt" "$coll" "$newrow"
@@ -159,7 +188,7 @@ else
     exit 1  #Exit program with error
 fi
 
-#sleep 5;
+#sleep 5; #used to test trap functionality 
 
 #----------------------------------
 #REMOVE TEMP FILES THAT WERE CREATED 
