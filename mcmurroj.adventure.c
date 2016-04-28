@@ -14,7 +14,7 @@
 #include <time.h>  //For random number generator
 //#include <fcntl.h>  //For opening files...
 
-//Free Malloc Memory!!
+//Free Malloc Memory!
 
 //LOTR Dynamic Map!
 //http://lotrproject.com/map/#zoom=3&lat=-1802.5&lon=1551&layers=BTTTTTTTT
