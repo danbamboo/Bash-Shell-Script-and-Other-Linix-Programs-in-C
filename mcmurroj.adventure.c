@@ -14,6 +14,8 @@
 #include <time.h>  //For random number generator
 //#include <fcntl.h>  //For opening files...
 
+//Free Malloc Memory!!
+
 //LOTR Dynamic Map!
 //http://lotrproject.com/map/#zoom=3&lat=-1802.5&lon=1551&layers=BTTTTTTTT
 
@@ -146,10 +148,23 @@ void generateRoomFiles(const char* dir)
     for(int i=0; i < 7; i++)  //Loop through each room, first check how many
         //Connection currently have.
     {
+       
+       
+       
+        int decreaseOdds = rand() %50;
         int randNumOfConnToGen = rand() %4 +3;  //Randomly choose how many
         //connections to generate for room (3-6)...NOTE: IF room already has as many
         //or more connections than the # generated here, do nothing.
+            if(decreaseOdds>1 && (randNumOfConnToGen==5 || randNumOfConnToGen==6))
+               {
+                   randNumOfConnToGen= randNumOfConnToGen -2;
+               }
         
+       
+            
+            
+            
+            
         //Check how many current connections held
         int howManyCurrentConn=0;
         
@@ -262,22 +277,26 @@ void generateRoomFiles(const char* dir)
        
   
         //++++++WRITE CONNECTIONS TO FILE
-        /*
-         for(int i=0; i<7;i++)
-         {
-         int twoDidx = 1;
-         int index=0;
-         do{
-         int index=99;
+        
+        int connIndex;
+        for(int con=1; con<7; con++)
+        {
+            char connNum[2];
+            sprintf(connNum,"%d",con); //convert int to char[]
+            connIndex=fileConnections[i][con];
+            if(connIndex!=99)
+            {
+               fputs("CONNECTION ",fp);
+               fputs(connNum,fp);
+               fputs(":",fp);
+               fputs(roomnames[connIndex],fp);
+               fputs("\n",fp);
+            }
+            
+        }
          
-         twoDidx++;
-         }while(index!=99);
          
-         
-         
-         
-         }
-         */
+       
         
         
                 //---
