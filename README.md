@@ -1,4 +1,4 @@
-# Bash-Shell-Script-and-Other-nix-Programs
+# Bash-Shell-Script-and-Other-Linix-Programs-in-C
     Course material from Oregon State University CS-344, Operating Systems.
     Undergraduate Computer Science Material
 
